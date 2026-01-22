@@ -7,7 +7,7 @@ const STATE = {
         avatar: "https://placehold.co/150x150/4f46e5/ffffff?text=U",
         bio: "Available"
     },
-    unsubscribe: null, // Fixed missing comma
+    unsubscribe: null, 
     rooms: {}, 
     replyTo: null, 
     selectionMode: false,
@@ -72,30 +72,36 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.msgsList.innerHTML = EMPTY_STATE_HTML;
 
     // 2. Auth Logic
-    auth.signInAnonymously().catch(err => console.error("Auth Error:", err));
+    // Check if window.auth exists (loaded from config.js)
+    if(window.auth) {
+        auth.signInAnonymously().catch(err => console.error("Auth Error:", err));
 
-    auth.onAuthStateChanged((user) => {
-        if (user) {
-            STATE.user.id = user.uid;
-            
-            // Load Profile
-            const hasProfile = localStorage.getItem('delta_profile');
-            if (hasProfile) {
-                loadProfile();
-            } else {
-                UI.modal.classList.remove('hidden');
-                UI.closeModal.style.display = 'none';
-            }
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                STATE.user.id = user.uid;
+                
+                // Load Profile from LocalStorage
+                const hasProfile = localStorage.getItem('delta_profile');
+                if (hasProfile) {
+                    loadProfile();
+                } else {
+                    // Force Profile Creation for new users
+                    UI.modal.classList.remove('hidden');
+                    UI.closeModal.style.display = 'none'; // Force them to save
+                }
 
-            // Load Rooms
-            loadRooms();
-            if(Object.keys(STATE.rooms).length === 0) {
-                UI.roomList.innerHTML = `<div style="padding:20px; text-align:center; color:#94a3b8; font-size:0.8rem;">No rooms found.<br>Create one to start!</div>`;
-            } else {
-                renderRoomList();
+                // Load Rooms
+                loadRooms();
+                if(Object.keys(STATE.rooms).length === 0) {
+                    UI.roomList.innerHTML = `<div style="padding:20px; text-align:center; color:#94a3b8; font-size:0.8rem;">No rooms found.<br>Create one to start!</div>`;
+                } else {
+                    renderRoomList();
+                }
             }
-        }
-    });
+        });
+    } else {
+        console.error("Firebase Auth not initialized");
+    }
 });
 
 /* --- EVENT LISTENERS --- */
@@ -116,7 +122,8 @@ function setupEvents() {
 
     UI.msgsList.onscroll = () => {
         const dist = UI.msgsList.scrollHeight - UI.msgsList.scrollTop - UI.msgsList.clientHeight;
-        dist > 150 ? UI.scrollDownBtn.classList.add('visible') : UI.scrollDownBtn.classList.remove('visible');
+        if(dist > 150) UI.scrollDownBtn.classList.add('visible');
+        else UI.scrollDownBtn.classList.remove('visible');
     };
 
     UI.scrollDownBtn.onclick = scrollToBottom;
@@ -144,7 +151,12 @@ function setupEvents() {
 
     UI.codeBtn.onclick = () => { UI.msgInput.value += " ```\ncode\n``` "; UI.msgInput.focus(); };
     UI.imgBtn.onclick = () => UI.imgInput.click();
-    UI.imgInput.onchange = (e) => { if(e.target.files[0]) sendImageMessage(e.target.files[0]); };
+    
+    UI.imgInput.onchange = (e) => { 
+        if(e.target.files[0]) sendImageMessage(e.target.files[0]); 
+        UI.imgInput.value = ''; // Reset input so same file can be selected again
+    };
+    
     UI.mobileBack.onclick = () => { UI.app.classList.remove('chat-active'); if(STATE.unsubscribe) STATE.unsubscribe(); };
     UI.themeBtn.onclick = cycleTheme;
     UI.deleteToggle.onclick = toggleDeleteMode;
@@ -194,13 +206,26 @@ function enterRoom(id) {
     STATE.currentRoomId = id;
     UI.headerTitle.innerText = STATE.rooms[id];
     UI.app.classList.add('chat-active');
+    
+    // Stop listening to previous room
     if (STATE.unsubscribe) STATE.unsubscribe();
     UI.msgsList.innerHTML = '';
 
+    // Listen to new room
     STATE.unsubscribe = db.collection('messages')
         .where('roomId', '==', id)
         .orderBy('timestamp', 'asc')
         .onSnapshot(snap => {
+            // If it's the first load and empty
+            if(snap.empty) {
+                UI.msgsList.innerHTML = EMPTY_STATE_HTML;
+                return;
+            }
+
+            // Remove empty state if it exists
+            const empty = document.getElementById('empty-state');
+            if(empty) empty.remove();
+
             snap.docChanges().forEach(change => {
                 if (change.type === "added") {
                     const data = change.doc.data();
@@ -208,8 +233,11 @@ function enterRoom(id) {
                     renderSingleMessage(data);
                     scrollToBottom();
                 }
+                if (change.type === "removed") {
+                    const el = document.getElementById(`msg-${change.doc.id}`);
+                    if(el) el.remove();
+                }
             });
-            if(snap.empty) UI.msgsList.innerHTML = EMPTY_STATE_HTML;
         });
     renderRoomList();
 }
@@ -253,16 +281,31 @@ function sendMessage() {
     UI.msgInput.value = '';
     STATE.replyTo = null;
     UI.replyBanner.classList.add('hidden');
+    // We don't manually append the message here anymore; onSnapshot will handle it.
 }
 
 function sendImageMessage(file) {
+    // 1. Upload to Storage
     const ref = storage.ref(`images/${STATE.currentRoomId}/${Date.now()}`);
+    
+    // Optional: Add a loading indicator here
+    flashNotice("Uploading image...");
+
     ref.put(file).then(() => ref.getDownloadURL()).then(url => {
+        // 2. Save URL to Firestore
         db.collection('messages').add({
-            roomId: STATE.currentRoomId, uid: STATE.user.id, userName: STATE.user.name,
-            text: url, type: 'image', timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            roomId: STATE.currentRoomId, 
+            uid: STATE.user.id, 
+            userName: STATE.user.name,
+            text: url, 
+            type: 'image', 
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
         });
+        flashNotice("Image Sent!");
+    }).catch(err => {
+        console.error(err);
+        flashNotice("Upload Failed");
     });
 }
 
@@ -283,20 +326,33 @@ function toggleDeleteMode() {
 
 window.toggleSelectMsg = (id) => {
     const el = document.getElementById(`msg-${id}`);
-    STATE.selectedMsgs.has(id) ? STATE.selectedMsgs.delete(id) : STATE.selectedMsgs.add(id);
-    el.classList.toggle('selected');
+    if(STATE.selectedMsgs.has(id)) {
+        STATE.selectedMsgs.delete(id);
+        el.classList.remove('selected');
+    } else {
+        STATE.selectedMsgs.add(id);
+        el.classList.add('selected');
+    }
 };
 
 function deleteSelectedMessages() {
-    STATE.selectedMsgs.forEach(id => db.collection('messages').doc(id).delete());
+    STATE.selectedMsgs.forEach(id => {
+        // Delete from Firestore
+        db.collection('messages').doc(id).delete().then(() => {
+            console.log("Message deleted");
+        }).catch(err => console.error("Error deleting msg: ", err));
+    });
     exitDeleteMode();
+    flashNotice("Deleting messages...");
 }
 
 function exitDeleteMode() {
     STATE.selectionMode = false;
     STATE.selectedMsgs.clear();
     UI.msgsList.classList.remove('selection-mode');
+    UI.deleteToggle.innerHTML = '<ion-icon name="trash-outline"></ion-icon>';
     UI.confirmDelete.classList.add('hidden');
+    document.querySelectorAll('.message-group.selected').forEach(el => el.classList.remove('selected'));
 }
 
 /* --- PROFILE --- */
@@ -311,16 +367,23 @@ function updateProfileUI() {
     UI.miniAvatar.src = STATE.user.avatar;
     UI.modalNameInput.value = STATE.user.name;
     document.getElementById('modal-bio-input').value = STATE.user.bio;
+    document.getElementById('modal-avatar-preview').src = STATE.user.avatar;
 }
 
 function openProfileModal() { UI.modal.classList.remove('hidden'); updateProfileUI(); }
 
 function saveProfile() {
-    STATE.user.name = UI.modalNameInput.value.trim() || "Anonymous";
+    const name = UI.modalNameInput.value.trim();
+    if(!name) { alert("Name is required"); return; }
+
+    STATE.user.name = name;
     STATE.user.bio = document.getElementById('modal-bio-input').value.trim();
     STATE.user.avatar = document.getElementById('modal-avatar-preview').src;
+    
     localStorage.setItem('delta_profile', JSON.stringify(STATE.user));
-    UI.closeModal.style.display = 'block'; UI.modal.classList.add('hidden');
+    
+    UI.closeModal.style.display = 'block'; // Show close button after saving
+    UI.modal.classList.add('hidden');
     updateProfileUI();
 }
 
@@ -328,7 +391,9 @@ function saveProfile() {
 function formatText(t) {
     let s = escapeHtml(t);
     s = s.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-    return s.replace(CONFIG.URL_REGEX, u => `<a href="${u}" target="_blank" class="msg-link">${u}</a>`);
+    // Use window.CONFIG in case variable scope issues
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return s.replace(urlRegex, u => `<a href="${u}" target="_blank" class="msg-link">${u}</a>`);
 }
 
 function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
