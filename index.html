@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ΔChat v4.1</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
+</script>
+
+</head>
+
+<body data-theme="midnight">
+
+<div id="app-container">
+
+  <div id="context-menu" class="context-menu hidden">
+    <div class="context-menu-item" id="ctx-rename"><ion-icon name="pencil"></ion-icon> Rename</div>
+    <div class="context-menu-item danger" id="ctx-delete"><ion-icon name="trash"></ion-icon> Delete Room</div>
+  </div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="profile-mini" id="profile-mini-btn">
+      <img src="https://placehold.co/100/4f46e5/ffffff?text=U" alt="Profile" id="mini-avatar">
+      <div class="profile-info">
+        <span id="mini-name">User</span>
+        <small>Edit Profile</small>
+      </div>
+    </div>
+
+    <div class="brand">
+      <span>ΔChat</span>
+      <button class="action-icon" id="theme-toggle" title="Switch Theme">
+        <ion-icon name="color-palette-outline"></ion-icon>
+      </button>
+    </div>
+
+    <div class="sidebar-controls">
+      <button id="create-room-btn" class="btn-new-room">
+        <ion-icon name="add-circle"></ion-icon> Create New Room
+      </button>
+
+      <div class="join-room">
+        <input type="text" id="join-input" placeholder="Enter Room Code..." autocomplete="off" />
+        <button id="join-btn" aria-label="Join room"><ion-icon name="arrow-forward"></ion-icon></button>
+      </div>
+    </div>
+
+    <div style="padding: 10px 20px 5px; font-size: 0.75rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 1px;">My Rooms</div>
+    <div id="room-list" class="rooms-list"></div>
+  </aside>
+
+  <main class="chat-area" id="chat-area">
+    <header class="chat-header">
+      <div class="header-left">
+        <button id="mobile-back" class="action-icon back-btn-mobile"><ion-icon name="arrow-back"></ion-icon></button>
+        <div class="header-info">
+          <h2 id="header-title">Select a Room</h2>
+          <span id="header-status" class="hidden">Online</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="delete-toggle" class="action-icon" title="Select Messages to Delete">
+          <ion-icon name="trash-outline"></ion-icon>
+        </button>
+        <button id="confirm-delete" class="action-icon hidden" style="color: #ef4444;" title="Confirm Delete">
+          <ion-icon name="checkmark-done-circle"></ion-icon>
+        </button>
+      </div>
+    </header>
+
+    <section id="messages-list" class="messages-wrapper"></section>
+    
+    <button id="scroll-down-btn" class="scroll-down-btn">
+        <ion-icon name="arrow-down"></ion-icon>
+    </button>
+
+    <footer class="input-container">
+      <div id="input-notice"></div>
+      <div id="reply-banner" class="reply-banner hidden">
+        <span class="reply-text">Replying to <b id="reply-target">User</b></span>
+        <button id="cancel-reply" class="action-icon"><ion-icon name="close"></ion-icon></button>
+      </div>
+      <form class="input-box-wrapper" id="chat-form" onsubmit="event.preventDefault();">
+        <input type="file" id="img-upload-input" accept="image/*" style="display: none;">
+        <button type="button" class="action-icon" id="img-btn" title="Send Image"><ion-icon name="image-outline"></ion-icon></button>
+        <button type="button" class="action-icon" id="code-btn" title="Insert Code"><ion-icon name="code-slash-outline"></ion-icon></button>
+        <button type="button" class="action-icon" id="emoji-btn" title="Emoji"><ion-icon name="happy-outline"></ion-icon></button>
+        
+        <input type="text" id="msg-input" placeholder="Type a message..." autocomplete="off" maxlength="1000" />
+        
+        <button id="send-btn" class="btn-send" type="submit" disabled><ion-icon name="paper-plane"></ion-icon></button>
+      </form>
+    </footer>
+  </main>
+
+  <div id="profile-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Edit Profile</h3>
+        <button id="close-profile" class="action-icon"><ion-icon name="close"></ion-icon></button>
+      </div>
+      <div class="modal-body">
+        <div class="avatar-edit-wrapper">
+            <img src="" id="modal-avatar-preview" class="profile-avatar-lg">
+            <button id="change-avatar-btn" class="btn-small">Change Photo</button>
+            <input type="file" id="modal-avatar-input" accept="image/*" hidden>
+        </div>
+        <div class="form-group">
+            <label>Display Name</label>
+            <input type="text" id="modal-name-input" class="input-dark" maxlength="15">
+        </div>
+        <div class="form-group">
+            <label>Bio / Status</label>
+            <input type="text" id="modal-bio-input" class="input-dark" placeholder="Available" maxlength="30">
+        </div>
+        <button id="save-profile-btn" class="btn-primary">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
