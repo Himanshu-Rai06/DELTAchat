@@ -1,6 +1,6 @@
 const CONFIG = {
     APP_NAME: "ΔChat",
-    VERSION: "3.0.0",
+    VERSION: "4.1.0",
     MAX_MESSAGE_LENGTH: 1000,
     DEFAULT_THEME: "midnight", 
     
@@ -23,10 +23,17 @@ const CONFIG = {
 };
 
 // Initialize Firebase SDKs
-firebase.initializeApp(CONFIG.firebase);
-const auth = firebase.auth();
-const db = firebase.firestore();
-const storage = firebase.storage();
+if (typeof firebase !== 'undefined') {
+    firebase.initializeApp(CONFIG.firebase);
+
+    // Make these global so app.js can use them
+    window.auth = firebase.auth();
+    window.db = firebase.firestore();
+    window.storage = firebase.storage();
+    
+    console.log("ΔChat: Firebase Initialized Successfully");
+} else {
+    console.error("Firebase SDK not loaded. Check your HTML <script> tags.");
+}
 
 Object.freeze(CONFIG);
-console.log("ΔChat: Firebase Initialized");
